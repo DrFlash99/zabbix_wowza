@@ -70,10 +70,30 @@ def query_server():
           print "Application:",application
 
         returndata += '{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
+  
+  else:
+    for i in range(len(xmldata['WowzaStreamingEngine']['VHost']:
+      vhost = xmldata['WowzaStreamingEngine']['VHost'][i]['Name']
+      if args.verbose:
+        print "Only 1 Vhost found:",vhost
+      
+      if 'Name' in xmldata['WowzaStreamingEngine']['VHost'][i]['Application']:
+        application = xmldata['WowzaStreamingEngine']['VHost'][i]['Application']['Name']
+        if args.verbose:
+          print "Only 1 Application found:",application
+
+        returndata += '{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
+
+      else:
+        for j in range(len(xmldata['WowzaStreamingEngine'][i]['VHost']['Application'])):
+          application = xmldata['WowzaStreamingEngine'][i]['VHost']['Application'][j]['Name']
+          if args.verbose:
+            print "Application:",application
+
+          returndata += '{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
 
   returndata += '] }'
   return returndata
-      
 
 def get_data():
   data = get_stats()
