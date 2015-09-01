@@ -9,7 +9,7 @@ To reduce update interval for each item reduce the caching time of the wowza_sta
 This is installed on the host you are running the zabbix agent on and that's capable of connecting to Wowza Media Server you would like to monitor.
 
 ```
-$ git clone https://github.com/akomic/zabbix_wowza
+$ git clone https://github.com/DrFlash99/zabbix_wowza
 $ cd zabbix_wowza
 $ cp wowza_stats.py /etc/zabbix/externalscripts/wowza_stats.py && chmod 755 /etc/zabbix/externalscripts/wowza_stats.py
 $ cp wowza.conf /etc/zabbix/zabbix_agentd.conf.d
