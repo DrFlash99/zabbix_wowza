@@ -4,76 +4,137 @@ import os
 import sys
 import argparse
 import time
-import cPickle as pickle
 import xmltodict
 import re
 import base64
 import requests
 from requests.auth import HTTPDigestAuth
 
-parser = argparse.ArgumentParser(description='Zabbix TTI Wowza client')
+parser = argparse.ArgumentParser(description='Zabbix Wowza client')
 
 parser.add_argument('-a', '--address', dest='server_address', help='Host or IP', required=True)
-parser.add_argument('-k', '--key', dest='zkey', help='Counter to get', required=True)
-parser.add_argument('-u', '--user', dest='username', help='Wowza User')
-parser.add_argument('-p', '--pass', dest='password', help='Wowza Pass')
+parser.add_argument('-u', '--user', dest='username', help='Wowza User', required=True)
+parser.add_argument('-p', '--pass', dest='password', help='Wowza Pass', required=True)
+parser.add_argument('-q', '--query', action='count', dest='query', help='Query vhosts & applications instead of data.')
+parser.add_argument('-k', '--key', dest='zkey', help='Counter to get')
 parser.add_argument('-t', '--ttl', dest='ttl', help='Local cache TTL', default=295)
+parser.add_argument('-V', '--VHost', dest='vhost', help='Optional: vhost name')
+parser.add_argument('-A', '--Application', dest='application', help='Optional: application name')
 parser.add_argument('-v', '--verbose', action='count', dest='verbose', help='Be verbose')
 
 args = parser.parse_args()
 
-keys = {
-  'MessagesOutBytesRate': 0,
-  'MessagesInBytesRate': 0,
-  'ConnectionsCurrent': 0,
-  'ConnectionsTotal': 0,
-  'ConnectionsTotalRejected': 0
-}
-
-def get_data(server_address):
-  pickle_filepath = "/tmp/wowza_stats.pickle"
+def get_stats():
+  filepath = "/tmp/wowza_stats.xml"
 
   if args.verbose:
-    print "Cache file exists: %s" % os.path.exists(pickle_filepath)
-    if os.path.exists(pickle_filepath):
-      print "Cache is %s seconds old" % str(time.time()-os.stat(pickle_filepath)[8])
+    if os.path.exists(filepath):
+      print "Cache file exists:", filepath
+      print "Cache is %s seconds old" % str(time.time()-os.stat(filepath)[8])
 
-  if not os.path.exists(pickle_filepath) or int(time.time()-os.stat(pickle_filepath)[8]) > int(args.ttl):
-      # Get data from the server
-
-      if args.verbose:
-        print "Cache miss"
-        print "Connecting to",server_address
-                    
-      response = requests.get('http://'+server_address+':8086/connectioncounts/', auth=HTTPDigestAuth(args.username, args.password))
-
-      xmldata = xmltodict.parse(response.text)
-
-      counters = {}
-
-      for key in keys:
-        if key in xmldata['WowzaMediaServer']:
-          val = xmldata['WowzaMediaServer'][key]
-          m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
-          if m:
-            counters[key] = float(m.group(0))*(10**float(m.group(1)))
-          else:
-            counters[key] = float(val)
-
-      # Write the data to cache
-      with open(pickle_filepath, 'w') as pickle_handle:
-          pickle.dump(counters, pickle_handle)
+  if not os.path.exists(filepath) or int(time.time()-os.stat(filepath)[8]) > int(args.ttl):
+    # Get data from the server
+    response = requests.get('http://'+args.server_address+':8086/connectioncounts/', auth=HTTPDigestAuth(args.username, args.password))
+    text = response.text
+    f = open(filepath, 'w')
+    f.write(text)
   else:
+    f = open(filepath, 'r')
+    text = f.read()
+
+  return text
+
+def query_server():
+  data = get_stats()
+
+  xmldata = xmltodict.parse(data)
+
+  returndata = '{ "data":['
+
+  if 'Name' in xmldata['WowzaStreamingEngine']['VHost']:
+    vhost = xmldata['WowzaStreamingEngine']['VHost']['Name']
+    if args.verbose:
+      print "Only 1 Vhost found:",vhost
+
+    if 'Name' in xmldata['WowzaStreamingEngine']['VHost']['Application']:
+      application = xmldata['WowzaStreamingEngine']['VHost']['Application']['Name']
       if args.verbose:
-        print "Cache hit"
-      with open(pickle_filepath) as pickle_handle:
-          counters = pickle.load(pickle_handle)
+        print "Only 1 Application found:",application
 
-  return counters
+      returndata += '{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
 
-result = get_data(args.server_address)
-if args.zkey in result:
-  print str(result[args.zkey])
+    else:
+      for i in range(len(xmldata['WowzaStreamingEngine']['VHost']['Application'])):
+        application = xmldata['WowzaStreamingEngine']['VHost']['Application'][i]['Name']
+        if args.verbose:
+          print "Application:",application
+
+        returndata += '{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
+
+  returndata += '] }'
+  return returndata
+      
+
+def get_data():
+  data = get_stats()
+  
+  xmldata = xmltodict.parse(data)
+
+  key = ''
+
+  if args.application:
+    if args.vhost:
+      if 'Name' in xmldata['WowzaStreamingEngine']['VHost']:
+        if args.verbose:
+          print "Only 1 Vhost found:",xmldata['WowzaStreamingEngine']['VHost']['Name']
+        
+        if 'Name' in xmldata['WowzaStreamingEngine']['VHost']['Application']:
+          if args.verbose:
+            print "Only 1 Application found:",xmldata['WowzaStreamingEngine']['VHost']['Application']['Name']
+
+          # Collect key stats here for single vhost and application 
+
+        else:
+          # collect key stats here for single vhost and application['Name']
+          for i in range(len(xmldata['WowzaStreamingEngine']['VHost']['Application'])):
+            if args.verbose:
+              print "Application:",xmldata['WowzaStreamingEngine']['VHost']['Application'][i]['Name']
+            if args.application == xmldata['WowzaStreamingEngine']['VHost']['Application'][i]['Name']:
+              if args.verbose:
+                print "found",args.application
+              val = xmldata['WowzaStreamingEngine']['VHost']['Application'][i][args.zkey]
+              m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
+              if m:
+                key = float(m.group(0))*(10**float(m.group(1)))
+              else:
+                key = float(val)
+      else:
+        print "something else"
+
+  elif args.vhost:
+    print "nothing";
+
+  else:
+    for key in keys:
+      if key in xmldata['WowzaStreamingEngine']:
+        val = xmldata['WowzaStreamingEngine'][key]
+        m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
+        if m:
+          key = float(m.group(0))*(10**float(m.group(1)))
+        else:
+          key = float(val)
+
+  return key
+
+if args.query:
+  result = query_server()
+elif args.zkey:
+  result = get_data()
+else:
+  print "Either query the server, or send in a key to fetch"
+
+if result <> '':
+  print str(result)
 else:
   print "Did not find the specified key"
     
