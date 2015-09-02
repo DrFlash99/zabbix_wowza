@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser(description='Zabbix Wowza client')
 parser.add_argument('-a', '--address', dest='server_address', help='Host or IP', required=True)
 parser.add_argument('-u', '--user', dest='username', help='Wowza User', required=True)
 parser.add_argument('-p', '--pass', dest='password', help='Wowza Pass', required=True)
-parser.add_argument('-q', '--query', dest='query', help='Zabbix Discovery (opt: vhost for vhosts, app or empty for vhosts&apps')
+parser.add_argument('-q', '--query', dest='query', help='Zabbix Discovery (opt: vhost for vhosts, app vhosts&apps')
 parser.add_argument('-k', '--key', dest='zkey', help='Counter to get')
 parser.add_argument('-t', '--ttl', dest='ttl', help='Local cache TTL', default=295)
 parser.add_argument('-V', '--VHost', dest='vhost', help='Optional: vhost name')
@@ -46,7 +46,32 @@ def get_stats():
 
 def query_vhosts():
   data = get_stats()
-  #sleep time :-(
+  
+  xmldata = xmltodict.parse(data)
+
+  returndata = '{ "data":['
+
+  if 'Name' in xmldata['WowzaStreamingEngine']['VHost']:
+    vhost = xmldata['WowzaStreamingEngine']['VHost']['Name']
+    if args.verbose:
+      print "Only 1 Vhost found:",vhost
+      
+    returndata += '{ "{#WOWZAVHOST}":"'+vhost+'" }'
+    
+  else:
+    first = True
+    for i in range(len(xmldata['WowzaStreamingEngine']['VHost'])):
+      vhost = xmldata['WowzaStreamingEngine']['VHost'][i]['Name']
+      if args.verbose:
+        print "Vhost:",vhost
+      if first:
+        returndata += '{ "{#WOWZAVHOST}":"'+vhost+'" }'
+        first = False
+      else:
+        returndata += ',{ "{#WOWZAVHOST}":"'+vhost+'" }'
+        
+  returndata += '] }'
+  return returndata    
 
 def query_all():
   data = get_stats()
@@ -68,14 +93,21 @@ def query_all():
       returndata += '{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
 
     else:
+      first = True
       for i in range(len(xmldata['WowzaStreamingEngine']['VHost']['Application'])):
         application = xmldata['WowzaStreamingEngine']['VHost']['Application'][i]['Name']
         if args.verbose:
           print "Application:",application
-
-        returndata += '{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
+        
+        if first:
+          returndata += '{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
+          first=False
+        else:
+          returndata += ',{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
+        
   
   else:
+    first = True
     for i in range(len(xmldata['WowzaStreamingEngine']['VHost'])):
       vhost = xmldata['WowzaStreamingEngine']['VHost'][i]['Name']
       if args.verbose:
@@ -86,7 +118,11 @@ def query_all():
         if args.verbose:
           print "Only 1 Application found:",application
 
-        returndata += '{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
+        if first:
+          returndata += '{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
+          first = False
+        else:
+          returndata += ',{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
 
       else:
         for j in range(len(xmldata['WowzaStreamingEngine'][i]['VHost']['Application'])):
@@ -94,7 +130,11 @@ def query_all():
           if args.verbose:
             print "Application:",application
 
-          returndata += '{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
+          if first:
+            returndata += '{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
+            first = False
+          else:
+            returndata += ',{ "{#WOWZAVHOST}":"'+vhost+'","{#WOWZAAPP}":"'+application+'" }'
 
   returndata += '] }'
   return returndata
@@ -202,9 +242,8 @@ def get_data():
             key = float(val)
 
   else:
-    for key in keys:
-      if key in xmldata['WowzaStreamingEngine']:
-        val = xmldata['WowzaStreamingEngine'][key]
+    if args.zkey in xmldata['WowzaStreamingEngine']:
+        val = xmldata['WowzaStreamingEngine'][args.zkey]
         m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
         if m:
           key = float(m.group(0))*(10**float(m.group(1)))
@@ -214,7 +253,7 @@ def get_data():
   return key
 
 if args.query:
-  if args.query == 'vhost':
+  if (args.query == 'vhost') or (args.query == 'vhosts'):
     result = query_vhosts()
   else:
     result = query_all()
