@@ -158,11 +158,14 @@ def get_data():
             print "Only 1 Application found:",xmldata['WowzaStreamingEngine']['VHost']['Application']['Name']
 
           val = xmldata['WowzaStreamingEngine']['VHost']['Application'][args.zkey]
-          m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
-          if m:
-            key = float(m.group(0))*(10**float(m.group(1)))
+          if args.zkey == "Status":
+            key = val
           else:
-            key = float(val)
+            m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
+            if m:
+              key = float(m.group(0))*(10**float(m.group(1)))
+            else:
+              key = float(val)
 
         else:
           # collect key stats here for vhost and application[Name]
@@ -173,11 +176,14 @@ def get_data():
               if args.verbose:
                 print "found App",args.application
               val = xmldata['WowzaStreamingEngine']['VHost']['Application'][i][args.zkey]
-              m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
-              if m:
-                key = float(m.group(0))*(10**float(m.group(1)))
+              if args.zkey == "Status":
+                key = val
               else:
-                key = float(val)
+                m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
+                if m:
+                  key = float(m.group(0))*(10**float(m.group(1)))
+                else:
+                  key = float(val)
       else:
         # Multiple vhosts, find the right one.
         for i in range(len(xmldata['WowzaStreamingEngine']['VHost'])):
@@ -193,11 +199,14 @@ def get_data():
                   print "Only 1 Application found:",xmldata['WowzaStreamingEngine']['VHost'][i]['Application']['Name']
 
                 val = xmldata['WowzaStreamingEngine']['VHost'][i]['Application'][args.zkey]
-                m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
-                if m:
-                  key = float(m.group(0))*(10**float(m.group(1)))
+                if args.zkey == "Status":
+                  key = val
                 else:
-                  key = float(val)
+                  m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
+                  if m:
+                    key = float(m.group(0))*(10**float(m.group(1)))
+                  else:
+                    key = float(val)
 
               else:
                 # collect key stats here for single vhost[name] and application[Name]
@@ -208,11 +217,14 @@ def get_data():
                     if args.verbose:
                       print "found App",args.application
                     val = xmldata['WowzaStreamingEngine']['VHost'][i]['Application'][j][args.zkey]
-                    m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
-                    if m:
-                      key = float(m.group(0))*(10**float(m.group(1)))
+                    if args.zkey == "Status":
+                      key = val
                     else:
-                      key = float(val)
+                      m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
+                      if m:
+                        key = float(m.group(0))*(10**float(m.group(1)))
+                      else:
+                        key = float(val)
 
   elif args.vhost:
     if 'Name' in xmldata['WowzaStreamingEngine']['VHost']:
@@ -235,20 +247,26 @@ def get_data():
           if args.verbose:
             print "found VHost",args.application
           val = xmldata['WowzaStreamingEngine']['VHost'][args.zkey]
+          if args.zkey == "Status":
+            key = val
+          else:
+            m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
+            if m:
+              key = float(m.group(0))*(10**float(m.group(1)))
+            else:
+              key = float(val)
+
+  else:
+    if args.zkey in xmldata['WowzaStreamingEngine']:
+        val = xmldata['WowzaStreamingEngine'][args.zkey]
+        if args.zkey == "Status":
+          key = val
+        else:
           m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
           if m:
             key = float(m.group(0))*(10**float(m.group(1)))
           else:
             key = float(val)
-
-  else:
-    if args.zkey in xmldata['WowzaStreamingEngine']:
-        val = xmldata['WowzaStreamingEngine'][args.zkey]
-        m = re.match(r"^(\d+)\s*E\s*(\d+)$",val)
-        if m:
-          key = float(m.group(0))*(10**float(m.group(1)))
-        else:
-          key = float(val)
 
   return key
 
