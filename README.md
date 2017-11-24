@@ -5,6 +5,9 @@ HTTP requests to Wowza Media Server are cached locally to avoid querying server 
 Request is made once for all the counters and cached by default for 295 seconds.
 To reduce update interval for each item reduce the caching time of the wowza_stats.py script by passing --ttl value or change it in the script.
 
+- Tested zabbix 2.4 - 3.4
+         wowza 4x
+
 ## Install
 This is installed on the host you are running the zabbix agent on and that's capable of connecting to Wowza Media Server you would like to monitor.
 
